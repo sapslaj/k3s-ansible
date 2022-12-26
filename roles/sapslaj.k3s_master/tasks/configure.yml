@@ -1,8 +1,13 @@
+- name: Copy k3s service env file
+  template:
+    src: k3s.service.env.j2
+    dest: '{{ k3s_systemd_dir }}/k3s.service.env'
+
 - name: Copy K3s service file
   register: k3s_service
   template:
-    src: "k3s.service.j2"
-    dest: "{{ k3s_systemd_dir }}/k3s.service"
+    src: k3s.service.j2
+    dest: '{{ k3s_systemd_dir }}/k3s.service'
     owner: root
     group: root
     mode: 0644
@@ -35,7 +40,7 @@
 
 - name: Store Master node-token
   set_fact:
-    token: "{{ node_token.content | b64decode | regex_replace('\n', '') }}"
+    k3s_token: "{{ node_token.content | b64decode | regex_replace('\n', '') }}"
 
 - name: Restore node-token file access
   file:

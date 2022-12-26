@@ -1,1 +1,5 @@
-k3s_systemd_dir: /usr/lib/systemd/system
+k3s_systemd_dir: /etc/systemd/system
+k3s_url: 'https://{{ k3s_master_hostname }}:6443'
+k3s_env:
+  K3S_TOKEN: '{{ k3s_token }}'
+  K3S_URL: '{{ k3s_url }}'

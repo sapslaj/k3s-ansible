@@ -1,2 +1,7 @@
----
-# tasks file for sapslaj.k3s_node
+# Shared between master and node roles
+- import_tasks: prereq.yml
+- import_tasks: download.yml
+- import_tasks: raspberrypi.yml
+
+# unique per role
+- import_tasks: configure.yml
