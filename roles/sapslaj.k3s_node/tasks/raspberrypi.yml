@@ -1,34 +1,49 @@
-- name: Download k3s binary x64
-  get_url:
-    url: https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/k3s
-    checksum: sha256:https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/sha256sum-amd64.txt
-    dest: /usr/local/bin/k3s
-    owner: root
-    group: root
-    mode: 0755
-  when: ansible_facts.architecture == "x86_64"
+- name: Test for raspberry pi /proc/cpuinfo
+  command: grep -E "Raspberry Pi|BCM2708|BCM2709|BCM2835|BCM2836" /proc/cpuinfo
+  register: grep_cpuinfo_raspberrypi
+  failed_when: false
+  changed_when: false
 
-- name: Download k3s binary arm64
-  get_url:
-    url: https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/k3s-arm64
-    checksum: sha256:https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/sha256sum-arm64.txt
-    dest: /usr/local/bin/k3s
-    owner: root
-    group: root
-    mode: 0755
-  when:
-    - ( ansible_facts.architecture is search("arm") and
-        ansible_facts.userspace_bits == "64" ) or
-      ansible_facts.architecture is search("aarch64")
+- name: Test for raspberry pi /proc/device-tree/model
+  command: grep -E "Raspberry Pi" /proc/device-tree/model
+  register: grep_device_tree_model_raspberrypi
+  failed_when: false
+  changed_when: false
 
-- name: Download k3s binary armhf
-  get_url:
-    url: https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/k3s-armhf
-    checksum: sha256:https://github.com/k3s-io/k3s/releases/download/{{ k3s_version }}/sha256sum-arm.txt
-    dest: /usr/local/bin/k3s
-    owner: root
-    group: root
-    mode: 0755
+- name: Set raspberry_pi fact to true
+  set_fact:
+    raspberry_pi: true
   when:
-    - ansible_facts.architecture is search("arm")
-    - ansible_facts.userspace_bits == "32"
+    grep_cpuinfo_raspberrypi.rc == 0 or grep_device_tree_model_raspberrypi.rc == 0
+
+- name: Set detected_distribution to Raspbian
+  set_fact:
+    detected_distribution: Raspbian
+  when: >
+    raspberry_pi|default(false) and
+    ( ansible_facts.lsb.id|default("") == "Raspbian" or
+      ansible_facts.lsb.description|default("") is match("[Rr]aspbian.*") )
+- name: Set detected_distribution to Raspbian (ARM64 on Debian Buster)
+  set_fact:
+    detected_distribution: Raspbian
+  when:
+    - ansible_facts.architecture is search("aarch64")
+    - raspberry_pi|default(false)
+    - ansible_facts.lsb.description|default("") is match("Debian.*buster")
+
+- name: Set detected_distribution_major_version
+  set_fact:
+    detected_distribution_major_version: "{{ ansible_facts.lsb.major_release }}"
+  when:
+    - detected_distribution | default("") == "Raspbian"
+
+- name: execute OS related tasks on the Raspberry Pi
+  include_tasks: "{{ item }}"
+  with_first_found:
+    - "prereq/{{ detected_distribution }}-{{ detected_distribution_major_version }}.yml"
+    - "prereq/{{ detected_distribution }}.yml"
+    - "prereq/{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+    - "prereq/{{ ansible_distribution }}.yml"
+    - "prereq/default.yml"
+  when:
+    - raspberry_pi|default(false)
