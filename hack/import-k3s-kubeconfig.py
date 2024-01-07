@@ -45,6 +45,8 @@ def main():
     raw_output = subprocess.check_output(args=ansible_cmd, env=env)
     output = json.loads(raw_output)
     tasks = [task for play in output["plays"] for task in play["tasks"]]
+    content = None
+    name = None
     for task in tasks:
         for host, result in task["hosts"].items():
             if "msg" in result:
@@ -77,15 +79,29 @@ def main():
     new_kubeconfig["contexts"][0]["context"]["cluster"] = new_kubeconfig["clusters"][0]["name"]
     new_kubeconfig["contexts"][0]["context"]["user"] = new_kubeconfig["users"][0]["name"]
 
-    with open(os.path.expanduser(args.kube_config), "r") as f:
-        kubeconfig = yaml.safe_load(f)
-    kubeconfig["clusters"] = merge_list(kubeconfig["clusters"], new_kubeconfig["clusters"][0], name)
-    kubeconfig["contexts"] = merge_list(kubeconfig["contexts"], new_kubeconfig["contexts"][0], name)
-    kubeconfig["users"] = merge_list(kubeconfig["users"], new_kubeconfig["users"][0], name)
+    if os.path.exists(os.path.expanduser(args.kube_config)):
+        with open(os.path.expanduser(args.kube_config), "r") as f:
+            kubeconfig = yaml.safe_load(f)
+    else:
+        kubeconfig = {
+            "apiVersion": "v1",
+            "kind": "Config",
+            "preferences": {},
+            "clusters": [],
+            "contexts": [],
+            "users": [],
+        }
+    kubeconfig["clusters"] = merge_list(kubeconfig.get("clusters", []), new_kubeconfig["clusters"][0], name)
+    kubeconfig["contexts"] = merge_list(kubeconfig.get("contexts", []), new_kubeconfig["contexts"][0], name)
+    kubeconfig["users"] = merge_list(kubeconfig.get("users", []), new_kubeconfig["users"][0], name)
+    if "current-context" not in kubeconfig:
+        kubeconfig["current-context"] = name
     if args.stdout:
         import sys
         yaml.safe_dump(kubeconfig, sys.stdout)
     else:
+        if not os.path.exists(os.path.dirname(os.path.expanduser(args.kube_config))):
+            os.mkdir(os.path.dirname(os.path.expanduser(args.kube_config)))
         with open(os.path.expanduser(args.kube_config), "w") as f:
             yaml.safe_dump(kubeconfig, f)
 
